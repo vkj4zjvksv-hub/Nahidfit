@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07152d">
+<link rel="manifest" href="manifest.json">
+<title>Nahidfit</title>
+<style>
+:root{--navy:#07152d;--yellow:#ffc928;--bg:#f5f6f8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Tahoma",sans-serif;color:var(--navy)}
+header{background:var(--navy);color:white;padding:22px 18px 18px;border-radius:0 0 24px 24px;position:sticky;top:0;z-index:5}
+.logo{font-size:28px;font-weight:800}.sub{opacity:.75;font-size:13px;margin-top:3px}
+nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:white;padding:8px;position:fixed;bottom:0;left:0;right:0;z-index:10;border-top:1px solid #ddd}
+nav button{border:0;background:white;color:#657080;padding:9px 3px;border-radius:12px;font-size:11px}nav button.active{background:var(--navy);color:var(--yellow)}
+main{padding:16px 14px 90px;max-width:700px;margin:auto}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:white;border-radius:18px;padding:17px;box-shadow:0 2px 12px #00000009}.num{font-size:28px;font-weight:800;margin-top:6px}.label{color:#697386;font-size:13px}
+.section{font-size:19px;font-weight:800;margin:8px 0 12px}.row{background:white;border-radius:16px;padding:14px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+button.primary{background:var(--navy);color:white;border:0;border-radius:12px;padding:10px 14px;font-weight:700}button.yellow{background:var(--yellow);color:var(--navy);border:0;border-radius:12px;padding:10px 14px;font-weight:700}
+.status{border:0;border-radius:12px;padding:9px 10px;background:var(--yellow);font-weight:700;color:var(--navy)}
+input,select{width:100%;padding:13px;border:1px solid #dfe3e8;border-radius:12px;background:white;font-size:16px;margin:5px 0 10px}label{font-size:13px;color:#687284}
+.modal{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end}.sheet{background:white;width:100%;border-radius:25px 25px 0 0;padding:20px;max-height:90vh;overflow:auto}
+.hidden{display:none!important}.green{color:#159447}.red{color:#d82f2f}.muted{color:#6d7685;font-size:13px}.empty{text-align:center;padding:35px 10px;color:#7a8493}
+</style></head>
+<body>
+<header><div class="logo">Nahidfit</div><div class="sub">حضور و غیاب • شهریه</div></header>
+<main id="app"></main>
+<nav>
+<button onclick="show('home')" id="n-home">🏠<br>خانه</button>
+<button onclick="show('students')" id="n-students">👩‍🎓<br>شاگردها</button>
+<button onclick="show('attendance')" id="n-attendance">✅<br>حضور</button>
+<button onclick="show('tuition')" id="n-tuition">💰<br>شهریه</button>
+</nav>
+<div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
+<script>
+const KEY='nahidfit-v1';
+let db=JSON.parse(localStorage.getItem(KEY)||'{"students":[],"attendance":[],"payments":[]}');
+const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+const money=n=>Number(n||0).toLocaleString('fa-IR')+' تومان';
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+const month=()=>today().slice(0,7);
+function sessions(s){return db.attendance.filter(a=>a.sid===s.id&&a.date.startsWith(month())&&a.status!=='absent').length}
+function paid(s){return db.payments.filter(p=>p.sid===s.id&&p.date.startsWith(month())).reduce((x,p)=>x+Number(p.amount),0)}
+function due(s){return Math.max(0,sessions(s)*Number(s.price)-paid(s))}
+function show(page){
+ document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+ document.getElementById('n-'+page).classList.add('active');
+ if(page==='home') home(); if(page==='students') students(); if(page==='attendance') attendance(); if(page==='tuition') tuition();
+}
+function home(){
+ let present=db.attendance.filter(a=>a.date===today()&&a.status==='present').length;
+ let absent=db.attendance.filter(a=>a.date===today()&&a.status==='absent').length;
+ let debt=db.students.filter(s=>due(s)>0).length;
+ app.innerHTML=`<div class="section">داشبورد امروز</div><div class="grid">
+ <div class="card"><div class="label">کل شاگردها</div><div class="num">${db.students.length}</div></div>
+ <div class="card"><div class="label">حاضر امروز</div><div class="num">${present}</div></div>
+ <div class="card"><div class="label">غایب امروز</div><div class="num">${absent}</div></div>
+ <div class="card"><div class="label">بدهکارها</div><div class="num">${debt}</div></div></div>
+ <div class="section" style="margin-top:24px">شهریه این ماه</div>
+ ${db.students.slice(0,5).map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${sessions(s)} جلسه</div></div><b class="${due(s)?'red':'green'}">${due(s)?money(due(s)):'تسویه'}</b></div>`).join('')||'<div class="empty">هنوز شاگردی اضافه نشده</div>'}`;
+}
+function students(){
+ app.innerHTML=`<div class="section">شاگردها <button class="yellow" style="float:left" onclick="addStudent()">＋ شاگرد</button></div>
+ ${db.students.map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${s.phone?esc(s.phone)+' • ':''}${money(s.price)} / جلسه</div></div>
+ <button class="primary" onclick="editStudent('${s.id}')">ویرایش</button></div>`).join('')||'<div class="empty">از «＋ شاگرد» شروع کن.</div>'}`;
+}
+function addStudent(id=null){
+ let s=id?db.students.find(x=>x.id===id):{name:'',phone:'',price:''};
+ sheet.innerHTML=`<h2>${id?'ویرایش شاگرد':'شاگرد جدید'}</h2>
+ <label>نام و نام خانوادگی</label><input id="sn" value="${esc(s.name)}">
+ <label>شماره تماس (اختیاری)</label><input id="sp" value="${esc(s.phone)}" inputmode="tel">
+ <label>مبلغ هر جلسه</label><input id="sc" value="${s.price}" inputmode="numeric">
+ <button class="primary" style="width:100%;margin-top:8px" onclick="saveStudent('${id||''}')">ذخیره</button>
+ <button style="width:100%;margin-top:8px;padding:12px;border:0;background:#eee;border-radius:12px" onclick="closeModal()">لغو</button>`;
+ modal.classList.remove('hidden');
+}
+function saveStudent(id){
+ let name=sn.value.trim(),price=Number(sc.value.replace(/,/g,''));
+ if(!name||!price)return alert('نام و مبلغ هر جلسه را وارد کن.');
+ if(id){let s=db.students.find(x=>x.id===id);Object.assign(s,{name,phone:sp.value,price})}
+ else db.students.push({id:crypto.randomUUID(),name,phone:sp.value,price});
+ save();closeModal();students();
+}
+function editStudent(id){addStudent(id)}
+function attendance(){
+ app.innerHTML=`<div class="section">حضور و غیاب امروز</div>
+ ${db.students.map(s=>{let a=db.attendance.find(x=>x.sid===s.id&&x.date===today());return `<div class="row"><b>${esc(s.name)}</b><select onchange="mark('${s.id}',this.value)">
+ <option value="">${a?a.status:'ثبت نشده'}</option><option value="present">حاضر</option><option value="late">تأخیر</option><option value="absent">غایب</option></select></div>`}).join('')||'<div class="empty">اول شاگردها را اضافه کن.</div>'}`;
+}
+function mark(sid,status){
+ let i=db.attendance.findIndex(a=>a.sid===sid&&a.date===today());
+ if(i>=0)db.attendance[i].status=status;else db.attendance.push({sid,date:today(),status});
+ save();attendance();
+}
+function tuition(){
+ app.innerHTML=`<div class="section">شهریه این ماه</div><div class="muted" style="margin-bottom:12px">مبلغ بر اساس جلسات حاضر/تأخیر محاسبه می‌شود و پرداخت‌ها برای همین ماه ثبت می‌شوند.</div>
+ ${db.students.map(s=>`<div class="row"><div><b>${esc(s.name)}</b><div class="muted">${sessions(s)} جلسه × ${money(s.price)}</div><div class="${due(s)?'red':'green'}" style="margin-top:4px">${due(s)?'باقی‌مانده: '+money(due(s)):'تسویه شده'}</div></div>
+ <button class="yellow" onclick="pay('${s.id}')">پرداخت</button></div>`).join('')||'<div class="empty">هنوز شاگردی اضافه نشده</div>'}`;
+}
+function pay(sid){
+ let s=db.students.find(x=>x.id===sid);
+ sheet.innerHTML=`<h2>ثبت پرداخت</h2><p><b>${esc(s.name)}</b><br><span class="muted">باقی‌مانده: ${money(due(s))}</span></p>
+ <label>مبلغ پرداختی</label><input id="pa" inputmode="numeric" placeholder="مثلاً 1500000">
+ <button class="primary" style="width:100%;margin-top:8px" onclick="savePay('${sid}')">ثبت پرداخت</button>
+ <button style="width:100%;margin-top:8px;padding:12px;border:0;background:#eee;border-radius:12px" onclick="closeModal()">لغو</button>`;
+ modal.classList.remove('hidden');
+}
+function savePay(sid){let amount=Number(pa.value.replace(/,/g,''));if(!amount)return;db.payments.push({id:crypto.randomUUID(),sid,date:today(),amount});save();closeModal();tuition()}
+function closeModal(){modal.classList.add('hidden')}
+modal.addEventListener('click',e=>{if(e.target===modal)closeModal()});
+show('home');
+</script></body></html>
